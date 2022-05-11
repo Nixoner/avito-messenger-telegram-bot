@@ -15,12 +15,11 @@ public class BotRegistrationServiceImpl implements BotRegistrationService {
 
     @Override
     public void registration(Long userId,
-                             String clientId,
-                             String clientSecret) {
+                             String name) {
         botUserRepository.save(
                 BotUser.builder()
                         .userId(userId)
-                        .name("Rizvan")
+                        .name(name)
                         .build());
     }
 }

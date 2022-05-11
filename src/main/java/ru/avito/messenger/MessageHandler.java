@@ -16,8 +16,18 @@ import ru.avito.messenger.api.ApiAuthorizationService;
 import ru.avito.messenger.api.ApiMessengerService;
 import ru.avito.messenger.api.ApiUserInfoService;
 import ru.avito.messenger.dao.AuthResponse;
-import ru.avito.messenger.dao.ChatInfoResponse;
-import ru.avito.messenger.dao.UserInfoResponse;
+import ru.avito.messenger.entity.ApiSettings;
+import ru.avito.messenger.entity.BotUser;
+import ru.avito.messenger.entity.ChatHistory;
+import ru.avito.messenger.repository.ApiSettingsRepository;
+import ru.avito.messenger.repository.BotUserRepository;
+import ru.avito.messenger.repository.ChatHistoryRepository;
+import ru.avito.messenger.service.BotRegistrationService;
+
+import java.sql.Date;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
 
 @Configuration
 public class MessageHandler {
@@ -29,6 +39,14 @@ public class MessageHandler {
     private ApiUserInfoService userInfoService;
     @Autowired
     private ApiMessengerService messengerService;
+    @Autowired
+    private BotRegistrationService botRegistrationService;
+    @Autowired
+    private ChatHistoryRepository chatHistoryRepository;
+    @Autowired
+    private ApiSettingsRepository apiSettingsRepository;
+    @Autowired
+    private BotUserRepository botUserRepository;
 
     @Bean
     public void getMessages() {
@@ -37,29 +55,51 @@ public class MessageHandler {
             for (Update update : updates) {
                 String messageText = update.message().text();
                 Long chatId = update.message().chat().id();
+                Long userId = update.message().from().id();
 
                 if ("/start".equalsIgnoreCase(messageText)) {
+                    botRegistrationService.registration(
+                            update.message().from().id(),
+                            update.message().from().firstName()
+                    );
                     Keyboard keyboard = new ReplyKeyboardMarkup(
-                            new KeyboardButton("Установить ключ"),
-                            new KeyboardButton("Получить сообщения")).oneTimeKeyboard(true);
+                            new KeyboardButton("Установить")).oneTimeKeyboard(true);
                     bot.execute(new SendMessage(chatId,
                             "Приветствую! Чтобы зарегистрировать прослушивателя сообщений Авито, вам необходимо " +
-                                    "отправить API-ключ Авито сообщением.").replyMarkup(keyboard));
+                                    "установить client_id и client_secret из личного кабинета Авито.")
+                            .replyMarkup(keyboard));
                 }
-                if ("Установить ключ".equalsIgnoreCase(messageText)) {
-                    ResponseEntity<AuthResponse> response = apiAuthorizationService.getToken();
-                    if (response.getStatusCode().is2xxSuccessful()) {
-                        bot.execute(new SendMessage(chatId, "Успешно! Ваш токен: "
-                                + response.getBody().getAccessToken()));
-                    }
+                Optional<BotUser> user = botUserRepository.findById(userId);
+                user.ifPresent(botUser -> chatHistoryRepository.save(
+                        ChatHistory.builder()
+                                .botUser(botUser)
+                                .text(messageText)
+                                .sendDate(Date.valueOf(LocalDate.now()))
+                                .build()
+                ));
+                if ("Установить".equalsIgnoreCase(messageText)) {
+                    bot.execute(new SendMessage(chatId, "Введите client_id и client_secret через запятую: (в формате: id,secret)"));
                 }
-                if ("Получить сообщения".equalsIgnoreCase(messageText)) {
-                    ResponseEntity<AuthResponse> response = apiAuthorizationService.getToken();
-                    if (response.getStatusCode().is2xxSuccessful()) {
-                        ResponseEntity<UserInfoResponse> userInfo = userInfoService.getUserInfo(response.getBody().getAccessToken());
-                        ResponseEntity<ChatInfoResponse> chatsInfo = messengerService.getChatsInfo(response.getBody().getAccessToken(), userInfo.getBody());
-                        bot.execute(new SendMessage(chatId, chatsInfo.getBody().getChats().get(0).getUpdated().toString()));
-                    }
+                List<ChatHistory> histories = chatHistoryRepository.findChatHistoryByBotUser_UserId(userId);
+                if (histories.size() > 1 && "Установить".equalsIgnoreCase(histories.get(histories.size() - 1).getText())) {
+                    String[] apiSettings = messageText.split(",");
+                    apiSettingsRepository
+                            .save(ApiSettings.builder()
+                                    .clientId(apiSettings[0])
+                                    .clientSecret(apiSettings[1])
+                                    .botUser(BotUser.builder()
+                                            .userId(userId)
+                                            .name(update.message().from().firstName())
+                                            .build())
+                                    .build()
+                            );
+                    Keyboard keyboard = new ReplyKeyboardMarkup(
+                            new KeyboardButton("Получить токен")).oneTimeKeyboard(true);
+                    bot.execute(new SendMessage(chatId, "Данные успешно сохранены.").replyMarkup(keyboard));
+                }
+                if ("Получить токен".equalsIgnoreCase(messageText)) {
+                    ResponseEntity<AuthResponse> token = apiAuthorizationService.getToken(userId);
+                    bot.execute(new SendMessage(chatId, "Ваш токен: " + token.getBody().getAccessToken()));
                 }
             }
             return UpdatesListener.CONFIRMED_UPDATES_ALL;

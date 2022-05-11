@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="dataSourceStorageLocal" created-in="IU-221.5080.210">
-    <data-source name="amtb@localhost" uuid="dcb2d466-fbec-4196-aef3-531f68599b61">
+  <component name="dataSourceStorageLocal" created-in="IU-212.5080.55">
+    <data-source name="PostgreSQL - amtb@localhost" uuid="e95c6361-621d-44fe-92a9-e976eb84c0d9">
       <database-info product="PostgreSQL" version="14.2 (Debian 14.2-1.pgdg110+1)" jdbc-version="4.2" driver-name="PostgreSQL JDBC Driver" driver-version="42.3.3" dbms="POSTGRES" exact-version="14.2" exact-driver-version="42.3">
         <identifier-quote-string>&quot;</identifier-quote-string>
       </database-info>
@@ -10,8 +10,8 @@
       <user-name>dev</user-name>
       <schema-mapping>
         <introspection-scope>
-          <node kind="database" qname="@">
-            <node kind="schema" qname="@" />
+          <node kind="database" qname="amtb">
+            <node kind="schema" qname="public" />
           </node>
         </introspection-scope>
       </schema-mapping>
